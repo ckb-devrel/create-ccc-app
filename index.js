@@ -3,13 +3,12 @@
 const { Command } = require('commander');
 const fs = require('fs-extra');
 const path = require('path');
-const { blue, bold, cyan, green, red, yellow } = require('picocolors');
-
-
 const packageJson = require('./package.json');
 const updateCheck = require('update-check');
-const { validateNpmName, isFolderEmpty } = require('./helpers');
 const prompts = require('prompts');
+const { blue, bold, cyan, green, red, yellow } = require('picocolors');
+const { validateNpmName, isFolderEmpty, getPkgManager, install } = require('./helpers');
+const { cccConnectorReactVersion } = require('./config');
 
 let projectName = ''
 
@@ -37,11 +36,45 @@ const program = new Command(packageJson.name)
     )
     .argument('[directory]')
     .usage('[directory] [options]')
-    .helpOption('-h, --help', 'Display this help message.')
-    .option('--ts, --typescript', 'Use TypeScript. (default)')
-    .option('--js, --javascript', 'Use JavaScript.')
-    .option('--cra, --react', 'Initialize as a Create React App(CRA) project. ')
-    .option('--cna, --next', 'Initialize as a Create Next App(CNA) project. (default)')
+    .helpOption(
+        '-h, --help',
+        'Display this help message.')
+    .option(
+        '--ts, --typescript',
+        'Use TypeScript. (default)'
+    )
+    .option(
+        '--js, --javascript',
+        'Use JavaScript.'
+    )
+    .option(
+        '--cra, --react',
+        'Initialize as a Create React App(CRA) project. '
+    )
+    .option(
+        '--cna14, --next14',
+        'Initialize as a Create Next App(CNA) v14 project. (default)'
+    )
+    .option(
+        '--use-npm',
+        'Explicitly tell the CLI to bootstrap the application using npm.'
+    )
+    .option(
+        '--use-pnpm',
+        'Explicitly tell the CLI to bootstrap the application using pnpm.'
+    )
+    .option(
+        '--use-yarn',
+        'Explicitly tell the CLI to bootstrap the application using Yarn.'
+    )
+    .option(
+        '--use-bun',
+        'Explicitly tell the CLI to bootstrap the application using Bun.'
+    )
+    .option(
+        '--skip-install',
+        'Explicitly tell the CLI to skip installing packages.'
+    )
     .action((name) => {
         // Commander does not implicitly support negated options. When they are used
         // by the user they will be interpreted as the positional argument (name) in
@@ -57,6 +90,17 @@ const opts = program.opts()
 const { args } = program
 //console.log(opts, args, projectName)
 
+const packageManager = !!opts.useNpm
+    ? 'npm'
+    : !!opts.usePnpm
+        ? 'pnpm'
+        : !!opts.useYarn
+            ? 'yarn'
+            : !!opts.useBun
+                ? 'bun'
+                : getPkgManager()
+
+//console.log(packageManager)
 
 async function run() {
     console.log()
@@ -157,14 +201,14 @@ async function run() {
     if (!opts.framework) {
         if (opts.react) {
             opts.framework = 'react';
-        } else if (opts.nextjs) {
-            opts.framework = 'nextjs';
+        } else if (opts.next14) {
+            opts.framework = 'next14';
         }
 
         // If no valid framework flag is provided, prompt the user
         if (!opts.framework) {
             const frameworks = [
-                { title: 'Create Next App (Next.js)', value: 'nextjs' },
+                { title: 'Create Next App (Next.js) v14', value: 'next14' },
                 { title: 'Create React App', value: 'react' },
             ];
 
@@ -193,10 +237,15 @@ async function run() {
         }
     }
 
+    console.log()
+
+    console.log(bold(`Using ${packageManager}.`));
     // Copy template
     const language = opts.javascript ? "js" : "ts";
 
-    const templatePath = path.join(__dirname, `app-templates/${opts.framework}-${language}-template`);
+    console.log(`📦 Initializing project with template: ${cyan(`${opts.framework}-${language}`)}`);
+
+    const templatePath = path.join(__dirname, `app-templates/${opts.framework}-${language}`);
     if (!fs.pathExistsSync(templatePath)) {
         console.error(
             `Could not find a template named ${red(
@@ -208,20 +257,28 @@ async function run() {
     }
 
     // 创建项目文件夹并复制模板
-    const projectPath = path.join(process.cwd(), projectName);
+    const originalDirectory = process.cwd();
+    const projectPath = path.join(originalDirectory, projectName);
 
     fs.ensureDirSync(projectPath);
     fs.copySync(templatePath, projectPath);
 
     // 修改 package.json 的 name 字段
     const packageJsonPath = path.join(projectPath, 'package.json');
-
+    let appPackageJson = '';
     if (fs.pathExistsSync(packageJsonPath)) {
         try {
-            const packageData = fs.readJsonSync(packageJsonPath); // 读取 package.json
-            packageData.name = projectName; // 修改 name 字段
-            fs.writeJsonSync(packageJsonPath, packageData, { spaces: 2 }); // 写入修改后的内容
-            console.log(green(`Updated ${projectName}/package.json with project name.`));
+            appPackageJson = fs.readJsonSync(packageJsonPath); // 读取 package.json
+            appPackageJson.name = projectName; // 修改 name 字段
+
+            // set ccc version
+            appPackageJson.dependencies = {
+                ...appPackageJson.dependencies,
+                "@ckb-ccc/connector-react": cccConnectorReactVersion,
+            };
+
+            fs.writeJsonSync(packageJsonPath, appPackageJson, { spaces: 2 }); // 写入修改后的内容
+            console.log(green(`Updated ${projectName}/package.json.`));
         } catch (error) {
             console.error(red(`Failed to update package.json: ${error.message}`));
             process.exit(1);
@@ -233,9 +290,84 @@ async function run() {
         process.exit(1);
     }
 
-    console.log(`\n🎉 Project ${projectName} created successfully!\n`);
-    console.log(`📁 Location: ${projectPath}`);
-    console.log(`📦 Template used: ${opts.framework} with ${opts.typescript ? "TypeScript" : "JavaScript"}`);
+    console.log(`\n🎉 Project ${projectName} created!\n`);
+
+    const useYarn = packageManager === 'yarn';
+
+    if (opts.skipInstall) {
+    /*    console.log('Skip install the dependencies, you can run the install command inside the project directory:')
+        console.log()
+        console.log(cyan(`    npm install`))
+        console.log('or', cyan(`  pnpm install`))
+        console.log('or', cyan(`  yarn install`))
+        console.log('or', cyan(`  bun install`))
+        console.log('    Install the dependencies.')*/
+
+        console.log('Skip install the dependencies, we suggest that you begin by typing:')
+        console.log()
+        console.log(cyan('  cd'), projectName)
+        console.log(`  ${cyan(`${packageManager} install`)}`)
+        console.log()   
+
+    } else {
+        console.log("\nInstalling dependencies:");
+        for (const dependency in appPackageJson.dependencies) {
+            const version = appPackageJson.dependencies[dependency];
+            console.log(`- ${cyan(dependency)}: ${yellow(version)}`);
+        }
+
+        console.log("\nInstalling devDependencies:");
+        for (const dependency in appPackageJson.devDependencies) {
+            const version = appPackageJson.devDependencies[dependency];
+            console.log(`- ${cyan(dependency)}: ${yellow(version)}`);
+        }
+
+        console.log()
+        console.log('Installing packages. This might take a couple of minutes.')
+        console.log()
+
+        // Change to the project directory
+        process.chdir(appPath);
+        await install(packageManager)
+        console.log('Packages installed.')
+        console.log()
+    }
+
+    if (opts.framework === 'next14' || opts.framework === 'next15') {
+        console.log('Inside the project directory, you can run several commands:')
+        console.log()
+        console.log(cyan(`  ${packageManager} ${useYarn ? '' : 'run '}dev`))
+        console.log('  Starts the development server.')
+        console.log()
+        console.log(cyan(`  ${packageManager} ${useYarn ? '' : 'run '}build`))
+        console.log('  Builds the app for production.')
+        console.log()
+        console.log(cyan(`  ${packageManager} start`))
+        console.log('  Runs the built app in production mode.')
+        console.log()
+        console.log('We suggest that you begin by typing:')
+        console.log()
+        console.log(cyan('  cd'), projectName)
+        console.log(`  ${cyan(`${packageManager} ${useYarn ? '' : 'run '}dev`)}`)
+        console.log()
+    } else if (opts.framework === 'react') {
+        console.log('Inside the project directory, you can run several commands:')
+        console.log()
+        console.log(cyan(`  ${packageManager} start`))
+        console.log('  Starts the development server.')
+        console.log()
+        console.log(cyan(`  ${packageManager} ${useYarn ? '' : 'run '}build`))
+        console.log('  Builds the app for production.')
+        console.log()
+        console.log('We suggest that you begin by typing:')
+        console.log()
+        console.log(cyan('  cd'), projectName)
+        console.log(`  ${cyan(`${packageManager} start`)}`)
+        console.log()   
+    }
+
+    console.log(`${green('Success!')} Created ${projectName} at ${projectPath}`)
+    console.log()
 }
 
 const update = updateCheck(packageJson).catch(() => null)

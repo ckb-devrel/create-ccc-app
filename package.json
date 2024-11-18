@@ -1,6 +1,6 @@
 {
-  "name": "create-ccc-app-test",
-  "version": "0.0.1",
+  "name": "create-ccc-app",
+  "version": "0.0.3",
   "description": "",
   "main": "index.js",
   "scripts": {
@@ -14,6 +14,7 @@
   "license": "MIT",
   "dependencies": {
     "commander": "^12.1.0",
+    "cross-spawn": "^7.0.5",
     "fs-extra": "^11.2.0",
     "picocolors": "^1.1.1",
     "prompts": "^2.4.2",
