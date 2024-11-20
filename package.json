@@ -1,13 +1,13 @@
 {
   "name": "create-ccc-app",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "description": "CLI tool to quickly bootstrap CKB dapps with @ckb-ccc.",
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "bin": {
-    "create-ccc-app-test": "./index.js"
+    "create-ccc-app": "./index.js"
   },
   "homepage": "https://github.com/CKBFansDAO/create-ccc-app",
   "repository": {

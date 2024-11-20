@@ -1,6 +1,15 @@
 # Getting Started with Create React App
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+This project was created as a [Create React App](https://github.com/facebook/create-react-app) project using the [create-ccc-app](https://github.com/CKBFansDAO/create-ccc-app) CLI tool.
+
+## CCC Resource
+
+To learn more about CCC, take a look at the following resources:
+
+- [CCC Documentation](https://docs.ckbccc.com/) - learn about CCC features and API.
+- [CCC Demo](https://app.ckbccc.com) - Code examples for invoking CCC in various use cases.
+
+You can check out [the CCC GitHub repository](https://github.com/ckb-devrel/ccc) - your feedback and contributions are welcome!
 
 ## Available Scripts
 
