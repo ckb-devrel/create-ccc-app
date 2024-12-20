@@ -8,7 +8,7 @@ const updateCheck = require('update-check');
 const prompts = require('prompts');
 const { blue, bold, cyan, green, red, yellow } = require('picocolors');
 const { validateNpmName, isFolderEmpty, getPkgManager, install } = require('./helpers');
-const { cccConnectorReactVersion } = require('./config');
+const { cccConnectorReactVersion, cccCoreVersion } = require('./config');
 
 let projectName = ''
 
@@ -46,6 +46,10 @@ const program = new Command(packageJson.name)
     .option(
         '--js, --javascript',
         'Use JavaScript.'
+    )
+    .option(
+        '--nest, --nest',
+        'Initialize as a Nest.js project. TypeScript only.'
     )
     .option(
         '--cra, --react',
@@ -167,48 +171,21 @@ async function run() {
         process.exit(1)
     }
 
-    // js, ts
-    if (!opts.typescript && !opts.javascript) {
-        const styledTypeScript = blue('TypeScript')
-        const { typescript } = await prompts(
-            {
-                type: 'toggle',
-                name: 'typescript',
-                message: `Would you like to use ${styledTypeScript}?`,
-                initial: true,
-                active: 'Yes',
-                inactive: 'No',
-            },
-            {
-                /**
-                 * User inputs Ctrl+C or Ctrl+D to exit the prompt. We should close the
-                 * process and not write to the file system.
-                 */
-                onCancel: () => {
-                    console.error('Exiting.')
-                    process.exit(1)
-                },
-            }
-        )
-        /**
-         * Depending on the prompt response, set the appropriate program flags.
-         */
-        opts.typescript = Boolean(typescript)
-        opts.javascript = !Boolean(typescript)
-    }
-
     // Handle framework flags
     if (!opts.framework) {
         if (opts.react) {
             opts.framework = 'react';
         } else if (opts.next14) {
             opts.framework = 'next14';
+        } if (opts.nest) {
+            opts.framework = 'nest';
         }
 
         // If no valid framework flag is provided, prompt the user
         if (!opts.framework) {
             const frameworks = [
                 { title: 'Create Next App (Next.js) v14', value: 'next14' },
+                { title: 'Nest.js', value: 'nest' },
                 { title: 'Create React App', value: 'react' },
             ];
 
@@ -235,6 +212,39 @@ async function run() {
                 process.exit(1);
             }
         }
+    }
+
+    // js, ts
+    if (opts.framework === "nest") {
+        opts.typescript = true;
+        opts.javascript = false;
+    } else if (!opts.typescript && !opts.javascript) {
+        const styledTypeScript = blue('TypeScript')
+        const { typescript } = await prompts(
+            {
+                type: 'toggle',
+                name: 'typescript',
+                message: `Would you like to use ${styledTypeScript}?`,
+                initial: true,
+                active: 'Yes',
+                inactive: 'No',
+            },
+            {
+                /**
+                 * User inputs Ctrl+C or Ctrl+D to exit the prompt. We should close the
+                 * process and not write to the file system.
+                 */
+                onCancel: () => {
+                    console.error('Exiting.')
+                    process.exit(1)
+                },
+            }
+        )
+        /**
+         * Depending on the prompt response, set the appropriate program flags.
+         */
+        opts.typescript = Boolean(typescript)
+        opts.javascript = !Boolean(typescript)
     }
 
     console.log()
@@ -272,10 +282,18 @@ async function run() {
             appPackageJson.name = projectName; // 修改 name 字段
 
             // set ccc version
-            appPackageJson.dependencies = {
-                ...appPackageJson.dependencies,
-                "@ckb-ccc/connector-react": cccConnectorReactVersion,
-            };
+            if (opts.framework === "nest") {
+                
+                appPackageJson.dependencies = {
+                    ...appPackageJson.dependencies,
+                    "@ckb-ccc/core": cccCoreVersion,
+                };
+            } else {
+                appPackageJson.dependencies = {
+                    ...appPackageJson.dependencies,
+                    "@ckb-ccc/connector-react": cccConnectorReactVersion,
+                };
+            }
 
             fs.writeJsonSync(packageJsonPath, appPackageJson, { spaces: 2 }); // 写入修改后的内容
             console.log(green(`Updated ${projectName}/package.json.`));
@@ -349,6 +367,23 @@ async function run() {
         console.log()
         console.log(cyan('  cd'), projectName)
         console.log(`  ${cyan(`${packageManager} ${useYarn ? '' : 'run '}dev`)}`)
+        console.log()
+    } else if (opts.framework === 'nest') {
+        console.log('Inside the project directory, you can run several commands:')
+        console.log()
+        console.log(cyan(`  ${packageManager} ${useYarn ? '' : 'run '}start:dev`))
+        console.log('  Starts the development server.')
+        console.log()
+        console.log(cyan(`  ${packageManager} ${useYarn ? '' : 'run '}build`))
+        console.log('  Builds the app for production.')
+        console.log()
+        console.log(cyan(`  ${packageManager} start`))
+        console.log('  Runs the built app in production mode.')
+        console.log()
+        console.log('We suggest that you begin by typing:')
+        console.log()
+        console.log(cyan('  cd'), projectName)
+        console.log(`  ${cyan(`${packageManager} ${useYarn ? '' : 'run '}start:dev`)}`)
         console.log()
     } else if (opts.framework === 'react') {
         console.log('Inside the project directory, you can run several commands:')
