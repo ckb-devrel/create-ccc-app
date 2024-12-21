@@ -1,6 +1,6 @@
 {
   "name": "create-ccc-app",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "description": "CLI tool to quickly bootstrap CKB dapps with @ckb-ccc.",
   "main": "index.js",
   "scripts": {
